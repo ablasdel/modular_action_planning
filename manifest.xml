@@ -1,0 +1,17 @@
+<package>
+  <description brief="meta_planner">
+
+     meta_planner
+
+  </description>
+  <author>eashapir</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/meta_planner</url>
+
+  <depend package="symbolic_planning" />
+  <depend package="or_ompl" />
+
+</package>
+
+

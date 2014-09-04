@@ -1,0 +1,116 @@
+
+Node Tree for Dynamic Table To Bin with 3 objects
+===================================
+
+    prioritizedSeq
+        checkpoint
+            DynamicToBin
+        checkpoint
+            DynamicToBin
+        checkpoint
+            DynamicToBin
+
+    DynamicToBin generates either
+        prioritizedSeq
+            GrabGlass (is PrioritizedSeq)
+                MoveHandTo
+                MoveToGrabGlass
+                MoveTowardsGlass
+                MoveHandTo
+                Grab
+                PlanArmToEEOffset
+            PlaceInBin
+            PlanArmToConfig
+        prioritizedSeq
+            GrabBowl (is PrioritizedSeq)
+                MoveHandTo
+                MoveToGrabBowl
+                MoveTowardsBoal
+                GrabNode
+                PlanArmToEEOffset
+            PlaceInBin
+            PlanArmToConfig
+        prioritizedSeq
+            SlidePlate
+                generates 
+                    PrioritizedSeq
+                        MoveHandTo
+                        PlanArmToPose
+                        MoveHandTo
+                        PlanArmToEEOffset
+                        Grab
+                        PlanArmToEEOffset
+                        Release
+                        PlanArmToEEOffset
+            GrabPlate
+                generates 
+                    PrioritizedSeq
+                        MoveHandTo
+                        PlanArmToPose
+                        MoveHandTo
+                        PlanArmToEEOffset
+                        PlanArmToEEOffset
+                        MoveHandTo
+                        MoveHandTo
+                        Grab
+                        PlanArmToEEOffset
+                        Release
+                        MoveHandTo
+                        PlanArmToEEOffset
+                        MoveHandTo
+                        MoveHandTo
+                        Grab
+                        PlanArmToEEOffset
+            PlaceInBin
+            PlanArmToConfig
+
+    PlaceInBin (is PrioritizedSeq)
+        MoveObjAboveBin
+        MoveObjTowardsBin
+        MoveHandTo
+        Release
+        Enable
+        MoveAboveBin
+
+Component Tree for MoveToGrabBowl
+===================================
+
+    MoveToGrabBowl
+        PlanArmToPosesGoalGenChoices
+            PrioritizedMultiStartsGoalGenChoicesGenSubnode
+                PrioritizedMultiStartsGenSubnodeComponent
+                    MultiStartsGoalGenChoicesGenSubnode
+                        MultiStartsGenSubnode
+                            MultiStarts
+                                MultiStartGoal
+                                Run
+                                DisableState
+                                ConnectedStartGoalPairs
+                                DisableNode
+                            ChooseSubnode
+                                Subnode
+                                    Run
+            generates and runs instances of PlanArmToPoses
+                PlanArmToPoses
+                    PrioritizedMultiStartsGenSubnode
+                        PrioritizedMultiStartsGenSubnodeComponent
+                            MultiStartsGenSubnode
+                                MultiStarts
+                                    MultiStartGoal
+                                    Run
+                                    DisableState
+                                    ConnectedStartGoalPairs
+                                    DisableNode
+                                ChooseSubnode
+                                    Subnode
+                                        Run
+                generates and runs instances of PlanArmToConfigsNode
+                    PlanArmToConfigsNode
+                        PrioritizedMultiStarts
+                            PrioritizedMultiStartsComponent
+                                MultiStarts
+                                    MultiStartGoal
+                                    Run
+                                    DisableState
+                                    ConnectedStartGoalPairs
+                                    DisableNode
