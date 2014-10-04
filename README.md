@@ -1,7 +1,6 @@
-modular_action_planning
+HGPC
 =======================
-
-A modular meta-planning framework for multi-stage manipulation planning in continuous space
+Hierarchical Geometric Plan Composition
 
 Plans can be run with 
 
