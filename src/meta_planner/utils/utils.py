@@ -155,8 +155,8 @@ def calcHashSavedState(savedState):
             for j in xrange(len(savedState['bodies'][name]['transform'][i])):
                 if savedState['bodies'][name]['transform'][i][j] == -0:
                     savedState['bodies'][name]['transform'][i][j] = 0
-        hashValue.update(savedState['bodies'][name]['configuration'].view(np.uint8))
-        hashValue.update(savedState['bodies'][name]['transform'].view(np.uint8))
+        hashValue.update(np.around(savedState['bodies'][name]['configuration'], 4).view(np.uint8))
+        hashValue.update(np.around(savedState['bodies'][name]['transform'], 4).view(np.uint8))
         hashValue.update(str(savedState['bodies'][name]['enabled']))
     for (name, armName) in savedState['grabbed']:
       hashValue.update('(' + name + ',' + armName + ')')

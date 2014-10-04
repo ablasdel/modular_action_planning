@@ -1,6 +1,7 @@
 from components import coreNodeComponents as components
 from components import metaNodeComponents as metaComponents
 from components import prioritizedNodeComponents as prioritizedComponents
+from components import robotNodeComponents as robotComponents
 import metaNodes
 from utils import utils
 from utils import choice
@@ -27,95 +28,6 @@ def setupWrappedRobotNodeHelper(node, kwargs):
 
 #============================================================================================================
 
-
-class PlanArmToPoseNode:
-    def __init__(self, *args, **kwargs):
-        setupWrappedRobotNodeHelper(self, kwargs)
-        components.extend(self, [
-            ('subnode', metaNodes.prioritizedComponents.PrioritizedSingleStartGenSubnode(), 
-                                                            [ ('startToSubnode', self.chooseSubnode) ]),
-        ])
-    def chooseSubnode(self, start):
-        pose = self.kwargs['pose']
-        import hashlib
-        poseHash = hashlib.sha1(pose.view(np.uint8)).hexdigest()
-
-        trajDisable = self.kwargs.pop('trajDisable', [])
-        with self.env:
-            arm = self.robot.GetManipulator(self.kwargs['armName'])
-            with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-                config = arm.FindIKSolution(pose, openravepy.IkFilterOptions.CheckEnvCollisions)
-                if config == None:
-                    raise Exception('no ik')
-        disable = self.kwargs.pop('disable', [])
-        return PlanArmToConfigNode(config=config, disable=disable+trajDisable, **self.kwargs)
-    def execute(self, (start, goal, (node, execData))):
-        self.disableNode()
-        node.execute((start, goal, execData))
-    def extendTo(self, other):
-        self.components.subnode.extendTo(other)
-        other.execute = self.execute
-
-class PlanArmToConfigNode:
-    def __init__(self, *args, **kwargs):
-        setupWrappedRobotNodeHelper(self, kwargs)
-        components.extend(self, [
-            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
-        ])
-        self.startToTree = kwargs['startToTree']
-        self.armName = kwargs['armName']
-        self.config = kwargs['config']
-        self.startGoalToTraj = {}
-    def runWithStart(self, start):
-        utils.restoreEnv(self.env, self.robot, start)
-        with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-            if self.robot.CheckSelfCollision() or self.env.CheckCollision(self.robot):
-                self.disableState(start)
-                return
-        with self.env:
-            arm = self.robot.GetManipulator(self.armName)
-            #startGoalPairs = planArmNodeHelper.planArmRRTConnect(
-            #                                        self.env, self.robot, self.armName, 
-            #                                        start, self.config, 
-            #                                        self.startToTree, 
-            #                                        self.disable, self.disablePadding)
-            #startGoalPairs = planArmNodeHelper.planArmAnytimePRM(
-            #                                        self.env, self.robot, self.armName, 
-            #                                        start, self.config, 
-            #                                        self.startToTree, 
-            #                                        self.disable, self.disablePadding)
-            startGoalPairs = planArmNodeHelper.planArmReuseMultiPRM(
-                                                    self.env, self.robot, self.armName, 
-                                                    [start], [self.config], 
-                                                    self.startToTree, 
-                                                    self.disable, self.disablePadding)
-        for (start, goal, traj) in startGoalPairs:
-            self.addConnectedGoal(goal)
-            self.startGoalToTraj[(start, goal)] = traj
-            self.addConnectedStartGoalPair((start, goal, None))
-    def execute(self, (start, goal, _)):
-        self.disableNode()
-        traj = self.startGoalToTraj[(start, goal)]
-
-        utils.restoreEnv(self.env, self.robot, start)
-        with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-            self.simplifier = openravepy.RaveCreatePlanner(self.env, 'OMPLSimplifier')
-            params = openravepy.Planner.PlannerParameters()
-            params.SetExtraParameters('<time_limit>{:f}</time_limit>'.format(3))
-            self.simplifier.InitPlan(self.robot, params)
-            self.simplifier.PlanPath(traj)
-
-        with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
-            try:
-                self.execRobot.ExecuteTrajectory(traj)
-            except Exception as e:
-                print e
-                import IPython; IPython.embed()
-                raise
-    def extendTo(self, other):
-        self.components.prioritizedSingleStart.extendTo(other)
-        other.execute = self.execute
-
 class PlanArmToEndEffectorOffsetNode:
     def __init__(self, *args, **kwargs):
         setupWrappedRobotNodeHelper(self, kwargs)
@@ -130,9 +42,14 @@ class PlanArmToEndEffectorOffsetNode:
         self.disableState(start)
         utils.restoreEnv(self.env, self.robot, start)
         with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-            if self.robot.CheckSelfCollision() or self.env.CheckCollision(self.robot):
-                self.addDisabledStates(self.getConnectedStarts())
-                return
+            with self.env:
+                if self.robot.CheckSelfCollision() or self.env.CheckCollision(self.robot):
+                    self.addDisabledStates(self.getConnectedStarts())
+                    return
+        #print(self.robot.left_arm.GetEndEffectorTransform())
+        #_input = raw_input('EE PLAN')
+        #if _input == 'a':
+        #    import IPython; IPython.embed()
         with self.env:
             arm = self.robot.GetManipulator(self.armName)
             finalPose = arm.GetEndEffectorTransform()
@@ -155,19 +72,84 @@ class PlanArmToEndEffectorOffsetNode:
         self.components.prioritizedSingleStart.extendTo(other)
         other.execute = self.execute
 
+class PlanBaseToXYThetaNode:
+    def __init__(self, x, y, theta, *args, **kwargs):
+        setupWrappedRobotNodeHelper(self, kwargs)
+        components.extend(self, [
+            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart])
+        ])
+        self.x = x
+        self.y = y
+        self.theta = theta
+        self.startGoalToTraj = {}
+    def runWithStart(self, start):
+        with self.env:
+            pose = self.robot.GetTransform()
+            original_pose = self.robot.GetTransform()
+            pose[0,3] = self.x
+            pose[1,3] = self.y
+            pose[:3,:3] = utils.zrot(self.theta)
+            self.robot.SetTransform(pose)
+            if self.env.CheckCollision(self.robot):
+                return
+            self.robot.SetTransform(original_pose)
+            traj = self.robot.sbpl_planner.PlanToBasePose(self.robot, pose, timelimit=3.0, return_first=False)
+            #self.robot.SetTransform(pose)
+            goal = utils.saveEnv(self.env, self.robot)
+            if traj != None:
+                self.addConnectedGoal(goal)
+                self.addConnectedStartGoalPair((start, goal, None))
+                self.startGoalToTraj[(start, goal)] = pose#traj
+    def execute(self, (start, goal, _)):
+        sim_traj = self.startGoalToTraj[(start, goal)]
+
+        traj = openravepy.RaveCreateTrajectory(self.execEnv, '')
+        traj.deserialize(sim_traj.serialize())
+        with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
+            self.execRobot.ExecuteTrajectory(traj)
+        utils.restoreEnv(self.execEnv, self.execRobot, goal)
+        #self.execRobot.SetTransform(sim_traj)
+    def extendTo(self, other):
+        self.components.prioritizedSingleStart.extendTo(other)
+        other.execute = self.execute
+
+class PlanArmToOffsetPoseNode:
+    def __init__(self, *args, **kwargs):
+        setupWrappedRobotNodeHelper(self, kwargs)
+        components.extend(self, [
+            ('subnode', metaNodes.prioritizedComponents.PrioritizedSingleStartGenSubnode(), 
+                                                            [ ('startToSubnode', self.chooseSubnode) ]),
+        ])
+        self.armName = kwargs['armName']
+        self.moveDir = kwargs['moveDir']
+        self.moveDist = kwargs['moveDist']
+    def chooseSubnode(self, start):
+        utils.restoreEnv(self.env, self.robot, start)
+        arm = self.robot.GetManipulator(self.armName)
+        pose = arm.GetEndEffectorTransform()
+        pose[:3,3] += np.transpose(np.array(self.moveDir)*self.moveDist)
+        return PlanArmToPoseNode(pose=pose, **self.kwargs)
+    def execute(self, (start, goal, (node, execData))):
+        self.disableNode()
+        node.execute((start, goal, execData))
+    def extendTo(self, other):
+        self.components.subnode.extendTo(other)
+        other.execute = self.execute
+
 class MoveHandToNode:
     def __init__(self, *args, **kwargs):
         setupWrappedRobotNodeHelper(self, kwargs)
         components.extend(self, [
-            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
+            ('node', prioritizedComponents.PrioritizedAllStartsGoalGen(), [ self.startGoalGen ]),
+            #('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
         ])
         self.handName = kwargs['handName']
         self.handKwargs = {}
         for e in [ 'f1', 'f2', 'f3', 'spread' ]:
             self.handKwargs[e] = kwargs[e]
         self.startGoalToTraj = {}
-    def runWithStart(self, start):
-        self.disableState(start)
+    def startGoalGen(self, start):
+        #self.disableState(start)
         utils.restoreEnv(self.env, self.robot, start)
         hand = getHand(self.robot, self.handName)
         with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
@@ -178,23 +160,26 @@ class MoveHandToNode:
     def execute(self, (start, goal, _)):
         self.disableNode()
         hand = getHand(self.execRobot, self.handName)
+        #import IPython; IPython.embed()
         with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
-            hand.MoveHand(**self.handKwargs)
+            hand.MoveHand(timeout=2, **self.handKwargs)
     def extendTo(self, other):
-        self.components.prioritizedSingleStart.extendTo(other)
+        #self.components.prioritizedSingleStart.extendTo(other)
+        self.components.node.extendTo(other)
         other.execute = execute
 
 class GrabNode:
     def __init__(self, *args, **kwargs):
         setupWrappedRobotNodeHelper(self, kwargs)
         components.extend(self, [
-            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
+            ('node', prioritizedComponents.PrioritizedAllStartsGoalGen(), [ self.startGoalGen ]),
+            #('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
         ])
         self.objname = kwargs['objname']
         self.armName = kwargs['armName']
         self.startGoalToTraj = {}
-    def runWithStart(self, start):
-        self.disableState(start)
+    def startGoalGen(self, start):
+        #self.disableState(start)
         utils.restoreEnv(self.env, self.robot, start)
         self.grab(self.robot, self.env)
         goal = utils.saveEnv(self.env, self.robot)
@@ -209,19 +194,21 @@ class GrabNode:
             arm.SetActive()
             robot.Grab(env.GetKinBody(self.objname))
     def extendTo(self, other):
-        self.components.prioritizedSingleStart.extendTo(other)
+        #self.components.prioritizedSingleStart.extendTo(other)
+        self.components.node.extendTo(other)
         other.execute = execute
 
 class ReleaseNode:
     def __init__(self, *args, **kwargs):
         setupWrappedRobotNodeHelper(self, kwargs)
         components.extend(self, [
-            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
+            ('node', prioritizedComponents.PrioritizedAllStartsGoalGen(), [ self.startGoalGen ]),
+            #('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
         ])
         self.objname = kwargs['objname']
         self.startGoalToTraj = {}
-    def runWithStart(self, start):
-        self.disableState(start)
+    def startGoalGen(self, start):
+        #self.disableState(start)
         utils.restoreEnv(self.env, self.robot, start)
         self.release(self.robot, self.env)
         goal = utils.saveEnv(self.env, self.robot)
@@ -234,20 +221,22 @@ class ReleaseNode:
         with env:
             robot.Release(env.GetKinBody(self.objname))
     def extendTo(self, other):
-        self.components.prioritizedSingleStart.extendTo(other)
+        #self.components.prioritizedSingleStart.extendTo(other)
+        self.components.node.extendTo(other)
         other.execute = execute
 
 class EnableNode:
     def __init__(self, *args, **kwargs):
         setupWrappedRobotNodeHelper(self, kwargs)
         components.extend(self, [
-            ('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
+            ('node', prioritizedComponents.PrioritizedAllStartsGoalGen(), [ self.startGoalGen ]),
+            #('prioritizedSingleStart', metaNodes.prioritizedComponents.PrioritizedSingleStart(), [ self.runWithStart ])
         ])
         self.objname = kwargs['objname']
         self.enabled = kwargs['enabled']
         self.startGoalToTraj = {}
-    def runWithStart(self, start):
-        self.disableState(start)
+    def startGoalGen(self, start):
+        #self.disableState(start)
         utils.restoreEnv(self.env, self.robot, start)
         self.setEnabled(self.env)
         goal = utils.saveEnv(self.env, self.robot)
@@ -261,10 +250,33 @@ class EnableNode:
             obj = env.GetKinBody(self.objname)
             obj.Enable(self.enabled)
     def extendTo(self, other):
-        self.components.prioritizedSingleStart.extendTo(other)
+        #self.components.prioritizedSingleStart.extendTo(other)
+        self.components.node.extendTo(other)
         other.execute = execute
 
 #============================================================================================================
+
+class PlanArmToConfigNode:
+    def __init__(self, *args, **kwargs):
+        setupWrappedRobotNodeHelper(self, kwargs)
+        kwargs['numStarts'] = 1
+        kwargs['configs'] = [kwargs['config']]
+        components.extend(self, [
+            ('subnode', PlanArmToConfigsNode(**kwargs), []),
+        ])
+    def extendTo(self, other):
+        self.components.subnode.extendTo(other)
+
+class PlanArmToPoseNode:
+    def __init__(self, *args, **kwargs):
+        setupWrappedRobotNodeHelper(self, kwargs)
+        kwargs['numStarts'] = 1
+        kwargs['poses'] = [kwargs['pose']]
+        components.extend(self, [
+            ('subnode', PlanArmToPosesNode(**kwargs), []),
+        ])
+    def extendTo(self, other):
+        self.components.subnode.extendTo(other)
 
 class PlanArmToPosesNode:
     def __init__(self, *args, **kwargs):
@@ -280,7 +292,9 @@ class PlanArmToPosesNode:
         goals = set()
         with self.env:
             arm = self.robot.GetManipulator(self.kwargs['armName'])
+            Zs = []
             for pose in poses:
+                #Zs.append(openravepy.misc.DrawAxes(self.env, pose))
                 with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
                     config = arm.FindIKSolution(pose, openravepy.IkFilterOptions.CheckEnvCollisions)
                     if config == None:
@@ -289,6 +303,11 @@ class PlanArmToPosesNode:
                 goal = utils.saveEnv(self.env, self.robot)
                 goals.add(goal)
                 configs.append(config)
+        #for Z in Zs:
+        #    Z.SetShow(True)
+        #raw_input('%')
+        #for Z in Zs:
+        #    Z.SetShow(False)
         if len(configs) == 0:
             raise Exception('no iks')
         disable = self.kwargs.pop('disable', [])
@@ -305,55 +324,110 @@ class PlanArmToConfigsNode:
         setupWrappedRobotNodeHelper(self, kwargs)
         #setupWrappedRobotNode(self, kwargs)
         components.extend(self, [
-            ('choice', metaNodes.prioritizedComponents.PrioritizedMultiStarts(**kwargs), [ self.runWithStarts ])
+            ('choice', metaNodes.prioritizedComponents.PrioritizedMultiStarts(**kwargs), [ self.runWithStarts ]),
+            #('execTraj', robotComponents.ExecChompdTrajNode(
+            #                robotComponents.ExecSmoothedTrajNode(
+            #                    robotComponents.ExecTrajNode(), **kwargs), **kwargs), []),
+            ('execTraj', robotComponents.ExecSmoothedTrajNode(robotComponents.ExecTrajNode(), **kwargs), []),
+            ('traj', robotComponents.TrajNode(), [])
         ])
+        self.components.execTraj.setTrajNode(self.components.traj)
+        self.components.execTraj.setExecTraj(self.execTraj)
         self.startToTree = kwargs['startToTree']
         self.armName = kwargs['armName']
         self.configs = kwargs['configs']
-        self.startGoalToTraj = {}
+        #self.startGoalToTraj = {}
     def runWithStarts(self, starts):
         for start in starts:
             utils.restoreEnv(self.env, self.robot, start)
             with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-                if self.robot.CheckSelfCollision() or self.env.CheckCollision(self.robot):
-                    self.disableState(start)
-                    starts.remove(start)
+                with self.env:
+                    if self.robot.CheckSelfCollision() or self.env.CheckCollision(self.robot):
+                        self.disableState(start)
+                        starts.remove(start)
         if len(starts) == 0:
             raise Exception('no valid starts')
         with self.env:
             arm = self.robot.GetManipulator(self.armName)
+        planType = self.kwargs.get('planType', 'ReuseMultiPRM')
+        if planType == 'ReuseMultiPRM':
             startGoalPairs = planArmNodeHelper.planArmReuseMultiPRM(
                                                     self.env, self.robot, self.armName, 
                                                     starts, self.configs, 
                                                     self.startToTree, 
                                                     self.disable, self.disablePadding)
+        elif planType == 'RRTConnect':
+            if len(starts) > 1 or len(self.configs) > 1:
+                print('warning, only planning with one start and one goal')
+            startGoalPairs = planArmNodeHelper.planArmRRTConnect(
+                                                    self.env, self.robot, self.armName, 
+                                                    starts[0], self.configs[0], 
+                                                    self.startToTree, 
+                                                    self.disable, self.disablePadding)
+        else:
+            raise Exception('invalid plan type')
         for (start, goal, traj) in startGoalPairs:
             self.addConnectedGoal(goal)
-            self.startGoalToTraj[(start, goal)] = traj
+            self.setTraj(start, goal, traj)
+            #self.startGoalToTraj[(start, goal)] = traj
             self.addConnectedStartGoalPair((start, goal, None))
-    def execute(self, (start, goal, _)):
-        self.disableNode()
-        traj = self.startGoalToTraj[(start, goal)]
-
-        utils.restoreEnv(self.env, self.robot, start)
-        with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
-            self.simplifier = openravepy.RaveCreatePlanner(self.env, 'OMPLSimplifier')
-            params = openravepy.Planner.PlannerParameters()
-            params.SetExtraParameters('<time_limit>{:f}</time_limit>'.format(3))
-            self.simplifier.InitPlan(self.robot, params)
-            self.simplifier.PlanPath(traj)
-
+    def execTraj(self, traj):
         with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
-            try:
-                self.execRobot.ExecuteTrajectory(traj)
-            except Exception as e:
-                print e
-                import IPython; IPython.embed()
-                raise
+            #import IPython; IPython.embed()
+            self.execRobot.ExecuteTrajectory(traj)
+    #def execute(self, (start, goal, _)):
+    #    self.disableNode()
+    #    #TODO TODO TODO
+    #    traj = self.startGoalToTraj[(start, goal)]
+
+    #    utils.restoreEnv(self.env, self.robot, start)
+    #    with utils.DisableWrapper(self.env, self.disable, self.disablePadding):
+    #        self.simplifier = openravepy.RaveCreatePlanner(self.env, 'OMPLSimplifier')
+    #        params = openravepy.Planner.PlannerParameters()
+    #        params.SetExtraParameters('<time_limit>{:f}</time_limit>'.format(3))
+    #        self.simplifier.InitPlan(self.robot, params)
+    #        self.simplifier.PlanPath(traj)
+
+    #    with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
+    #        try:
+    #            self.execRobot.ExecuteTrajectory(traj)
+    #        except Exception as e:
+    #            print e
+    #            import IPython; IPython.embed()
+    #            raise
     def extendTo(self, other):
         self.components.choice.extendTo(other)
-        other.execute = self.execute
+        self.components.execTraj.extendTo(other)
 
+
+#============================================================================================================
+
+import pddlpy
+
+class PDDLNode:
+    def __init__(self, objects, actions, predicates, goal, **kwargs):
+        setupWrappedRobotNodeHelper(self, kwargs)
+        components.extend(self, [
+            ('node', prioritizedComponents.PrioritizedSingleStartGenSubnode(), [ self.startToSubnode ])
+        ])
+        self.objects = objects
+        self.actions = actions
+        self.predicates = predicates
+        self.goal = goal
+    def startToSubnode(self, start):
+        utils.restoreEnv(self.env, self.robot, start)
+
+        domain = pddlpy.Domain(self.predicates, self.actions);
+        problem = pddlpy.Problem(domain, self.objects, self.goal)
+        problem.populate_state()
+        plan = problem.solve()
+
+        seq = []
+        for fn, args in plan:
+            seq.append(fn(args))
+        return metaNodes.PrioritizedSeqNode(seq)
+    def extendTo(self, other):
+        self.components.node.extendTo(other)
 
 #============================================================================================================
 

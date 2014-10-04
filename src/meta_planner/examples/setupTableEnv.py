@@ -11,14 +11,19 @@ objects_path = rospkg.RosPack().get_path('ng_demo') + '/ordata/objects/'
 def setup_env(isReal, attach_viewer=True):
     env, robot = herbpy.initialize(sim=not isReal, attach_viewer=attach_viewer)
     if isReal:
-        robot.left_arm.SetVelocityLimits(np.ones(7)*.5, .5)
-
-
-    robot.right_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][7:14])
-    robot.left_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][0:7])
-    #robot.chomp_planner.ComputeDistanceField(robot)
+        robot.left_arm.SetVelocityLimits(np.ones(7)*.8, .8)
 
     table = add_table(env, robot)
+
+    bin = add_bin(env)
+
+    return env, robot, table, bin
+
+def set_robot_pose(env, robot, table):
+
+    if robot.left_arm.simulated:
+        robot.right_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][7:14])
+        robot.left_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][0:7])
     
     if robot.segway_sim:
         robot_in_table = np.array([[0., 1., 0.,  0.], 
@@ -29,26 +34,24 @@ def setup_env(isReal, attach_viewer=True):
         pose[2,3] = 0
         robot.SetTransform(pose)
 
-    bin = add_bin(env)
 
-    return env, robot, table, bin
-
-def add_table(env, robot):
+def add_table(env, robot, x=-.915, y=.38):
     with env:
         table = env.ReadKinBodyXMLFile(objects_path + 'table.kinbody.xml')
+        table.SetName('table_' + str(len(env.GetBodies())))
         env.AddKinBody(table)
 
         table_pose = np.eye(4)
 
-        table_pose = np.array([[1., 0.,  0., -0.915],
-                                    [0., 0., -1., 0.38],
+        table_pose = np.array([[1., 0.,  0., x],
+                                    [0., 0., -1., y],
                                     [0., 1.,  0., 0.0], 
                                     [0., 0.,  0., 1.]])
 
         table.SetTransform(table_pose)
     return table
 
-def add_bin(env):
+def add_bin(env, x=0, y=1.7):
     with env:
         bin = env.ReadKinBodyXMLFile(objects_path + 'bin.kinbody.xml')
         env.AddKinBody(bin)
@@ -64,7 +67,7 @@ def add_bin(env):
         #bin_pose[:3,3] = [ -.1, 1.5, 0 + bin_aabb.extents()[2] ]
         #cart next to herb
         bin_pose[:3,:3] = utils.zrot(math.pi)
-        bin_pose[:3,3] = [ 0, 1.7, 0 + bin_aabb.extents()[2] + .5 ]
+        bin_pose[:3,3] = [ x, y, 0 + bin_aabb.extents()[2] + .5 ]
 
         bin.SetTransform(bin_pose)
     return bin

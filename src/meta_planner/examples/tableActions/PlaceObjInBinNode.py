@@ -12,15 +12,16 @@ from prpy.tsr import *
 from prpy.tsr.rodrigues import *
 from prpy.tsr.tsr import *
 
-def Place(objname, startToTree, arm, **common):
+def PlaceObjInBin(objname, arm, **common):
     armName = arm.GetName()
     node = metaNodes.PrioritizedSeqNode([ 
-        MoveObjAboveBin(objname, startToTree=startToTree, numStarts=12, armName=armName, **common),
-        MoveObjTowardsBin(objname, disable=['bin'], armName=armName,**common),
+        MoveObjToBin(objname, armName=armName, **common),
+        #MoveObjAboveBin(objname, armName=armName, **common),
+        #MoveObjTowardsBin(objname, disable=['bin'], armName=armName,**common),
         robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=.5, spread=0, disable=['bin'], handName=arm.hand.GetName(), **common),
         robotNodes.ReleaseNode(objname=objname, armName=arm.GetName(), **common),
         robotNodes.EnableNode(objname=objname, enabled=False, **common),
-        MoveAboveBin(trajDisable=['bin'], numStarts=12, startToTree=startToTree, armName=armName, **common),
+        MoveAboveBin(trajDisable=['bin'], armName=armName, **common),
     ])
     return node
 
@@ -39,7 +40,7 @@ def Place(objname, startToTree, arm, **common):
 #            "z": choice.Uniform(-.2, .2),
 #        })
 
-class MoveObjAboveBin:
+class MoveObjToBin:
     def __init__(self, objname, *args, **kwargs):
         components.extend(self, [
             #('node', robotChoiceNodes.PlanArmToPoseGoalGenChoiceNode(*args, **kwargs), [ self.getStartGoalGenChoice, self.startGoalGenChoiceToPose ])
@@ -47,6 +48,7 @@ class MoveObjAboveBin:
         ])
         robotNodes.extendRobotNode(self, self.components.node)
         self.objname = objname
+        self.armName = kwargs['armName']
     def getStartGoalGenChoice(self, start):
         return choice.Choices({
             "x": choice.Uniform(-.25, .25),
@@ -59,24 +61,23 @@ class MoveObjAboveBin:
     def startGoalGenChoiceToPose(self, start, c):
         rotation, extraRotation, offset = getObjSpecificProps(self.objname)
         abovePose, aboveIk, tsr_chain_place, tsr_chain_constrain = placeAboveBin(self.env, self.robot, c, self.objname, rotation, offset, extraRotation)
+        bin = self.env.GetKinBody('bin')
+        if self.objname.startswith('glass'):
+            abovePose[2,3] = bin.ComputeAABB().pos()[2] + .1;
+        elif self.objname.startswith('bowl'):
+            abovePose[2,3] = bin.ComputeAABB().pos()[2] + .2;
+        elif self.objname.startswith('plate'):
+            abovePose[2,3] = bin.ComputeAABB().pos()[2] + .05;
+        else:
+            raise Exception('unsupported objtype: ' + str(self.objname))
+        #arm = self.robot.GetManipulator(self.armName)
+        #aboveIK = arm.FindIKSolution(abovePose, openravepy.IkFilterOptions.CheckEnvCollisions)
+        #origIK = arm.GetDOFValues()
+        #if aboveIK != None:
+        #    arm.SetDOFValues(aboveIK)
+        #    raw_input('3')
+        #arm.SetDOFValues(origIK)
         return abovePose
-
-class MoveObjTowardsBin:
-    def __init__(self, objname, *args, **kwargs):
-        components.extend(self, [
-            ('node', robotChoiceNodes.PlanArmToEndEffectorOffsetGoalGenChoiceNode(*args, **kwargs), [ self.getStartGoalGenChoice, self.startGoalGenChoiceToEndEffectorOffset ])
-        ])
-        robotNodes.extendRobotNode(self, self.components.node)
-        self.objname = objname
-    def getStartGoalGenChoice(self, start):
-        return choice.Choices({ })
-    def startGoalGenChoiceToEndEffectorOffset(self, start, c):
-        with self.env:
-            bin = self.env.GetKinBody('bin')
-            bin_aabb = bin.ComputeAABB()
-            obj = self.env.GetKinBody(self.objname)
-            dist = obj.GetTransform()[2,3] - (bin.GetTransform()[2,3] - bin_aabb.extents()[2])
-        return [0, 0, -1], dist
 
 class MoveAboveBin:
     def __init__(self, *args, **kwargs):

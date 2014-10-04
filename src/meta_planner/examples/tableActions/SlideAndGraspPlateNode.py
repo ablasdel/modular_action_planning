@@ -11,13 +11,13 @@ import numpy as np
 import random
 import openravepy
 
-def SlideAndGraspPlate(plateName, startToTree, arm, **common):
+def SlideAndGraspPlate(plateName, arm, **common):
     armName = arm.GetName()
-    node = SlideAndGraspPlateChoiceNode(plateName, startToTree, armName, **common)
+    node = SlideAndGraspPlateChoiceNode(plateName, armName, **common)
     return node
 
 class SlideAndGraspPlateChoiceNode:
-    def __init__(self, plateName, startToTree, armName, **common):
+    def __init__(self, plateName, armName, **common):
         robotNodes.setupWrappedRobotNodeHelper(self, common)
         components.extend(self, [
             ('choice', metaNodes.prioritizedComponents.PrioritizedSingleStartGoalGenChoiceGenSubnode(), 
@@ -25,7 +25,6 @@ class SlideAndGraspPlateChoiceNode:
         ])
 
         self.setGetStartGoalGenChoice(self.getStartGoalGenChoice)
-        self.startToTree = startToTree
         self.plateName = plateName
         self.armName = armName
         self.common = common
@@ -48,7 +47,7 @@ class SlideAndGraspPlateChoiceNode:
 
         node = metaNodes.PrioritizedSeqNode([
             robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=.5, spread=0, handName=arm.hand.GetName(), **self.common),
-            robotNodes.PlanArmToPoseNode(pose=pose_above_plate, startToTree=self.startToTree, armName=self.armName, **self.common),
+            robotNodes.PlanArmToPoseNode(pose=pose_above_plate, armName=self.armName, **self.common),
             robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=0, spread=.5, disable=[self.plateName], handName=arm.hand.GetName(), **self.common),
             robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=[0, 0, -1], moveDist=c['startDistanceAboveTable'], armName=self.armName, **self.common),
             robotNodes.GrabNode(objname=self.plateName, armName=arm.GetName(), **self.common),
@@ -57,7 +56,7 @@ class SlideAndGraspPlateChoiceNode:
             robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=[0,0,1], moveDist=.1, armName=self.armName, **self.common),
 
             robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=.5, spread=0, handName=arm.hand.GetName(), **self.common),
-            robotNodes.PlanArmToPoseNode(pose=pose_near_plate, startToTree=self.startToTree, armName=self.armName, **self.common),
+            robotNodes.PlanArmToPoseNode(pose=pose_near_plate, armName=self.armName, **self.common),
             robotNodes.MoveHandToNode(f1=1.5, f2=1.5, f3=0, spread=.5, disable=[self.plateName, 'table'], handName=arm.hand.GetName(), **self.common),
             robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=tableDir, moveDist=tableOffset, disable=[self.plateName, 'table'], armName=self.armName, **self.common),
             robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=-tableDir, moveDist=.01, disable=[self.plateName, 'table'], armName=self.armName, **self.common),
@@ -74,7 +73,7 @@ class SlideAndGraspPlateChoiceNode:
             robotNodes.MoveHandToNode(f1=3, f2=3, f3=3, spread=.5, disable=[self.plateName, 'table'], handName=arm.hand.GetName(), **self.common),
 
             robotNodes.GrabNode(objname=self.plateName, armName=arm.GetName(), **self.common),
-            robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=[0,0,1], moveDist=c['endDistanceAboveTable'], disable=[self.plateName, 'table'], armName=self.armName, **self.common),
+            #robotNodes.PlanArmToEndEffectorOffsetNode(moveDir=[0,0,1], moveDist=c['endDistanceAboveTable'], disable=[self.plateName, 'table'], armName=self.armName, **self.common),
         ])
         return node
     def getStartGoalGenChoice(self, start):
@@ -90,6 +89,6 @@ class SlideAndGraspPlateChoiceNode:
                                                     radius + .1 - finger_length),
                 "startDistanceAboveTable": choice.Uniform(.05, .15),
                 "startDistanceFromPlate": choice.Uniform(.025, .1),
-                "endDistanceAboveTable": choice.Uniform(.05, .15),
+                #"endDistanceAboveTable": choice.Uniform(.05, .15),
             })
 

@@ -94,7 +94,7 @@ class PrioritizedMultiStartsComponent:
         components.extend(self, [
             ('subnode', kwargs['parent'], [ self.getStarts, self.onChangedStarts ])
         ])
-        self.numStarts = kwargs['numStarts']
+        self.numStarts = kwargs.get('numStarts', 12)
         self.startToN = {}
         self.startToWeight = {}
     def onChangedStarts(self):
@@ -103,7 +103,7 @@ class PrioritizedMultiStartsComponent:
                 self.startToN[start] = 0
                 self.startToWeight[start] = float('inf')
     def getStarts(self):
-        return choosePrioritizedStarts(self, self.numStarts)
+        return choosePrioritizedStarts(self, self.numStarts, replace=True)
     def getNormalizedScore(self):
         values = [ value for start, value in self.startToWeight.items() if not self.isDisabled(start) ]
         if len(values) == 0:
@@ -118,7 +118,7 @@ class PrioritizedMultiStartsGenSubnodeComponent:
         components.extend(self, [
             ('subnode', kwargs['parent'], [ self.getStarts, self.onChangedStarts, self.chooseSubnode ])
         ])
-        self.numStarts = kwargs['numStarts']
+        self.numStarts = kwargs.get('numStarts', 12)
         self.startToN = {}
         self.startToWeight = {}
         self.sampleWeight = 0
@@ -131,7 +131,7 @@ class PrioritizedMultiStartsGenSubnodeComponent:
                 self.startToWeight[start] = float('inf')
                 self.sampleWeight = float('inf')
     def getStarts(self):
-        return choosePrioritizedStarts(self, self.numStarts)
+        return choosePrioritizedStarts(self, self.numStarts, replace=True)
     def getNormalizedScore(self):
         return combineNodesForPrioritizedScore(self.subnodes)*len(self.subnodes)/(len(self.subnodes)+1) + self.sampleWeight/(len(self.subnodes)+1)
     def extendTo(self, other):
@@ -212,5 +212,21 @@ class PrioritizedSingleStartGenSubnode:
         self.startToSubnode = startToSubnode
     def extendTo(self, other):
         self.components.subnode.extendTo(other)
+
+#===============================================================
+
+class PrioritizedAllStartsGoalGen:
+    def __init__(self):
+        components.extend(self, [
+            ('subnode', metaComponents.AllStartsGoalGen(), [])
+        ])
+    def getNormalizedScore(self):
+        if len(self.components.subnode.unranStarts) > 0:
+            return float('inf')
+        else:
+            return 0
+    def extendTo(self, other):
+        self.components.subnode.extendTo(other)
+        other.getNormalizedScore = self.getNormalizedScore
 
 #===============================================================

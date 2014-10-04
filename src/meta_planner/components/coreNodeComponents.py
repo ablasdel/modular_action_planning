@@ -1,6 +1,8 @@
 import threading
 from utils import utils
 
+statesContainer = { 'val': 0 }
+
 class Run:
     def __init__(self):
         self.paused = False
@@ -128,7 +130,9 @@ class MultiStartGoal:
     def getConnectedGoals(self):
         return self.connectedGoals
     def addConnectedGoal(self, goal, internal=False):
+        statesContainer['val'] -= len(self.connectedGoals)
         self.connectedGoals.add(goal)
+        statesContainer['val'] += len(self.connectedGoals)
         if not internal:
             self.onChangedGoals()
     def removeConnectedGoal(self, goal, internal=False):
@@ -136,7 +140,9 @@ class MultiStartGoal:
         if not internal:
             self.onChangedGoals()
     def addConnectedGoals(self, goals, internal=False):
+        statesContainer['val'] -= len(self.connectedGoals)
         self.connectedGoals |= goals
+        statesContainer['val'] += len(self.connectedGoals)
         if not internal:
             self.onChangedGoals()
     def removeConnectedGoals(self, goals, internal=False):
@@ -158,7 +164,9 @@ class MultiStartGoal:
     def getConnectedStarts(self):
         return self.connectedStarts
     def addConnectedStart(self, start, internal=False):
+        statesContainer['val'] -= len(self.connectedStarts)
         self.connectedStarts.add(start)
+        statesContainer['val'] += len(self.connectedStarts)
         if not internal:
             self.onChangedStarts()
     def removeConnectedStart(self, start, internal=False):
@@ -166,7 +174,9 @@ class MultiStartGoal:
         if not internal:
             self.onChangedStarts()
     def addConnectedStarts(self, starts, internal=False):
+        statesContainer['val'] -= len(self.connectedStarts)
         self.connectedStarts |= starts 
+        statesContainer['val'] += len(self.connectedStarts)
         if not internal:
             self.onChangedStarts()
     def removeConnectedStarts(self, starts, internal=False):

@@ -4,7 +4,7 @@ from nodes import robotNodes
 from nodes import metaNodes
 from utils import choice
 
-from tableActions.GraspGlassNode import GrabGlass
+from tableActions.GrabGlass2 import GrabGlass
 from tableActions.GraspBowlNode import GrabBowl
 from tableActions.GraspPlateNode import GrabPlate
 from tableActions.PlaceNode import Place
@@ -24,11 +24,16 @@ def tableDynToBin(startToTree, arm, env, robot, execEnv, execRobot):
         "execEnv": execEnv,
     }
 
-    node = metaNodes.PrioritizedSeqNode([
-        metaNodes.CheckpointNode(DynamicToBin(arm, startToTree, **common)), 
-        metaNodes.CheckpointNode(DynamicToBin(arm, startToTree, **common)), 
-        metaNodes.CheckpointNode(DynamicToBin(arm, startToTree, **common)), 
-    ])
+    subnodes = []
+    numToMove = 0
+    numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('glass')])
+    numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('bowl')])
+    numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('plate')])
+
+    for _ in xrange(numToMove):
+        subnodes.append(metaNodes.CheckpointNode(DynamicToBin(arm, startToTree, **common)))
+
+    node = metaNodes.PrioritizedSeqNode(subnodes)
     return node
 
 class DynamicToBin:

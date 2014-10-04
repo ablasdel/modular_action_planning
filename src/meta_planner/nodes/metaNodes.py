@@ -27,11 +27,24 @@ class PrioritizedSeqNode:
     def chooseNode(self):
         node = prioritizedComponents.choosePrioritizedSubnode(self.nodes, 0)
         nodeidx = self.nodes.index(node)
-        print 'CHOOSE', nodeidx, node
-        #import IPython; IPython.embed()
         return node
     def getNormalizedScore(self):
         return prioritizedComponents.combineNodesForPrioritizedScore(self.nodes)
+    def extendTo(self, other):
+        self.components.seq.extendTo(other)
+        other.getNormalizedScore = self.getNormalizedScore
+
+class PrioritizedGrowingSeqNode:
+    def __init__(self):
+        components.extend(self, [
+            ('seq', metaComponents.GrowingSeq(), [ ('chooseExistingSubnode', self.chooseNode) ])
+        ])
+    def chooseNode(self):
+        node = prioritizedComponents.choosePrioritizedSubnode(self.subnodes, 0)
+        nodeidx = self.subnodes.index(node)
+        return node
+    def getNormalizedScore(self):
+        return prioritizedComponents.combineNodesForPrioritizedScore(self.subnodes)
     def extendTo(self, other):
         self.components.seq.extendTo(other)
         other.getNormalizedScore = self.getNormalizedScore
@@ -45,6 +58,44 @@ class PrioritizedParNode:
         return prioritizedComponents.choosePrioritizedSubnode(self.nodes, 0)
     def getNormalizedScore(self):
         return prioritizedComponents.combineNodesForPrioritizedScore(self.nodes)
+
+class PrioritizedFSMNode:
+    def __init__(self, startFn):
+        components.extend(self, [
+            ('fsm', metaComponents.FSM(startFn), [ self.chooseSubnode, self.chooseStateForGenSubnode ]),
+        ])
+        self.sampleWeight = float('inf')
+        self.srcStateOptionNs = {}
+    def chooseSubnode(self):
+        return prioritizedComponents.choosePrioritizedSubnode(self.nodes, self.sampleWeight)
+    def chooseStateForGenSubnode(self):
+        optionScores = []
+        for srcState in self.components.fsm.srcStateOptions:
+            if self.isDisabled(srcState):
+                continue
+            n = 0
+            if srcState in self.srcStateOptionNs.keys():
+                n = self.srcStateOptionNs[srcState]
+            if n == 0:
+                optionScores.append((srcState, float('inf')))
+            else:
+                optionScores.append((srcState, 1.0/n))
+        choices = prioritizedComponents.choosePrioritizedOptions(optionScores, 1, isDisabled=lambda x: False, replace=False)
+        srcState = choices[0]
+        if srcState not in self.srcStateOptionNs:
+            self.srcStateOptionNs[srcState] = 0
+        self.srcStateOptionNs[srcState] += 1
+        self.sampleWeight = sum([ 1.0/n for n in self.srcStateOptionNs.values() if n > 0 ]) + \
+                            sum([ float('inf') for n in self.srcStateOptionNs.values() if n == 0 ])
+        return srcState
+    def getNormalizedScore(self):
+        N = len(self.nodes) + len(self.srcStateOptionNs)
+        score = combineNodesForPrioritizedScore(self.nodes)*len(self.nodes)/N + \
+               self.sampleWeight*len(self.srcStateOptionNs)/N
+        return score
+    def extendTo(self, other):
+        self.components.fsm.extendTo(other)
+        other.getNormalizedScore = self.getNormalizedScore
 
 #============================================================================================================
 
@@ -88,4 +139,3 @@ class CheckpointNode:
             onDone()
         else:
             self.components.subnode.chooseAndRun(onDone)
-

@@ -7,50 +7,52 @@ import numpy
 import numpy as np
 
 def planEEOffsetCBiRRT(env, robot, armName, start, direction, distance, disable, disablePadding):
+    #raw_input('CBIRRT')
     with env:
         arm = robot.GetManipulator(armName)
         arm.SetActive()
         start_config = arm.GetDOFValues()
 
     with utils.DisableWrapper(env, disable, disablePadding):
-        finalPose = arm.GetEndEffectorTransform()
-        finalPose[:3,3] += numpy.transpose(numpy.array(direction)*distance)
-        finalPoseIk = arm.FindIKSolution(finalPose, openravepy.IkFilterOptions.CheckEnvCollisions)
-        if finalPoseIk == None:
-            raise Exception('no ik')
+        with env:
+            finalPose = arm.GetEndEffectorTransform()
+            finalPose[:3,3] += numpy.transpose(numpy.array(direction)*distance)
+            finalPoseIk = arm.FindIKSolution(finalPose, openravepy.IkFilterOptions.CheckEnvCollisions)
+            if finalPoseIk == None:
+                raise Exception('no ik')
 
-        manip = robot.GetActiveManipulator()
-        H_world_ee = manip.GetEndEffectorTransform()
+            manip = robot.GetActiveManipulator()
+            H_world_ee = manip.GetEndEffectorTransform()
 
-        # 'object frame w' is at ee, z pointed along direction to move
-        H_world_w = prpy.kin.H_from_op_diff(H_world_ee[0:3,3], direction)
-        H_w_ee = numpy.dot(prpy.kin.invert_H(H_world_w), H_world_ee)
-    
-        # Serialize TSR string (goal)
-        Hw_end = numpy.eye(4)
-        Hw_end[2,3] = distance
+            # 'object frame w' is at ee, z pointed along direction to move
+            H_world_w = prpy.kin.H_from_op_diff(H_world_ee[0:3,3], direction)
+            H_w_ee = numpy.dot(prpy.kin.invert_H(H_world_w), H_world_ee)
+        
+            # Serialize TSR string (goal)
+            Hw_end = numpy.eye(4)
+            Hw_end[2,3] = distance
 
-        goaltsr = prpy.tsr.tsr.TSR(T0_w = numpy.dot(H_world_w,Hw_end), 
-                                 Tw_e = H_w_ee, 
-                                 Bw = numpy.zeros((6,2)), 
-                                 manip = robot.GetActiveManipulatorIndex())
-        goal_tsr_chain = prpy.tsr.tsr.TSRChain(sample_goal = True,
-                                             TSRs = [goaltsr])
-        # Serialize TSR string (whole-trajectory constraint)
-        Bw = numpy.zeros((6,2))
-        epsilon = 0.001
-        Bw = numpy.array([[-epsilon,            epsilon],
-                          [-epsilon,            epsilon],
-                          [min(0.0, distance),  max(0.0, distance)],
-                          [-epsilon,            epsilon],
-                          [-epsilon,            epsilon],
-                          [-epsilon,            epsilon]])
+            goaltsr = prpy.tsr.tsr.TSR(T0_w = numpy.dot(H_world_w,Hw_end), 
+                                     Tw_e = H_w_ee, 
+                                     Bw = numpy.zeros((6,2)), 
+                                     manip = robot.GetActiveManipulatorIndex())
+            goal_tsr_chain = prpy.tsr.tsr.TSRChain(sample_goal = True,
+                                                 TSRs = [goaltsr])
+            # Serialize TSR string (whole-trajectory constraint)
+            Bw = numpy.zeros((6,2))
+            epsilon = 0.001
+            Bw = numpy.array([[-epsilon,            epsilon],
+                              [-epsilon,            epsilon],
+                              [min(0.0, distance),  max(0.0, distance)],
+                              [-epsilon,            epsilon],
+                              [-epsilon,            epsilon],
+                              [-epsilon,            epsilon]])
 
-        trajtsr = prpy.tsr.tsr.TSR(T0_w = H_world_w, 
-                               Tw_e = H_w_ee, 
-                               Bw = Bw, 
-                               manip = robot.GetActiveManipulatorIndex())
-        traj_tsr_chain = prpy.tsr.tsr.TSRChain(constrain=True, TSRs=[ trajtsr ])
+            trajtsr = prpy.tsr.tsr.TSR(T0_w = H_world_w, 
+                                   Tw_e = H_w_ee, 
+                                   Bw = Bw, 
+                                   manip = robot.GetActiveManipulatorIndex())
+            traj_tsr_chain = prpy.tsr.tsr.TSRChain(constrain=True, TSRs=[ trajtsr ])
         
         extra_args = ['psample', '0.1']
         extra_args += [ 'TSRChain', goal_tsr_chain.serialize() ]
@@ -77,7 +79,8 @@ def planEEOffsetCBiRRT(env, robot, armName, start, direction, distance, disable,
 
         with open(traj_path, 'rb') as traj_file:
             traj_xml = traj_file.read()
-            traj = openravepy.RaveCreateTrajectory(env, '')
+            with env:
+                traj = openravepy.RaveCreateTrajectory(env, '')
             traj.deserialize(traj_xml)
 
     with env:
@@ -161,9 +164,20 @@ def planArmAnytimePRM(env, robot, armName, start, config, startToTree, disable, 
         #return traj
 
 def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, disable, disablePadding):
+    print 'START'
     #NOTE we assume starts are compatible
     with env:
         arm = robot.GetManipulator(armName)
+    
+    #for start in startEnvs:
+    #    with env:
+    #        utils.restoreEnv(env, robot, start)
+    #    raw_input('S')
+    #for config in configs:
+    #    with env:
+    #        arm.SetDOFValues(config)
+    #    raw_input('G')
+    #raw_input('D')
 
     with env:
         activeDOFs = arm.GetArmIndices()
@@ -177,9 +191,12 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
     #    t = list(startEnvs)[0]['bodies']['glass_3']['transform']
     #    objInEE = np.dot(np.linalg.inv(arm.GetEndEffectorTransform()), t)
     #    print('objInEE', np.around(objInEE, 4))
-    print 'START'
     with utils.DisableWrapper(env, disable, disablePadding):
-        planner = startToTree.getTree(list(startEnvs)[0], robot, activeDOFs)
+        with env:
+            if startToTree == None:
+                planner = None
+            else:
+                planner = startToTree.getTree(list(startEnvs)[0], robot, activeDOFs)
         isNewPlanner = False
         if planner == None:
             planner = openravepy.RaveCreatePlanner(env, 'ompl')
@@ -188,7 +205,7 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
             params.SetRobotActiveJoints(robot)
             params.SetGoalConfig(configs[0])
             params.SetExtraParameters("<planner_type>ReusePRM</planner_type>" +
-                                      "<time_limit>2</time_limit>" +
+                                      "<anytime_time_limit>2</anytime_time_limit>" +
                                       "<is_anytime>1</is_anytime>")
             planner.InitPlan(robot, params)
 
@@ -200,11 +217,11 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
                 env.SetUserData(user_data)
             USERDATA_DESTRUCTOR = '__destructor__'
 
-            times = { 'n': 0 }
+            times = { 'n': 0, 'bail': False }
             def planCB(_):
                 times['n'] += 1
-                print 'times', times['n']
-                if times['n'] < 8:
+                print 'times', times['n'], times['bail']
+                if times['n'] < 4 and not times['bail']:
                     return openravepy.PlannerAction.ReturnWithAnySolution
                 else:
                     return openravepy.PlannerAction.Interrupt
@@ -214,14 +231,19 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
             import random
             user_data[USERDATA_DESTRUCTOR + str(random.random())] = handle
 
-            compatiblePlanner = startToTree.getCompatibleTree(list(startEnvs)[0], robot, activeDOFs)
+            with env:
+                if startToTree != None:
+                    compatiblePlanner = startToTree.getCompatibleTree(list(startEnvs)[0], robot, activeDOFs)
+                else:
+                    compatiblePlanner = None
         print 0
         planner.GetUserData()['n'] = 0
+        planner.GetUserData()['bail'] = False
 
         try:
             planner.SendCommand('prm_clearQuery')
         except:
-            import IPython; IPython.embed()
+            #import IPython; IPython.embed()
             raise
         print starts, goals
         setStartAndGoalStatesCmd = 'prm_setStartAndGoalStates '
@@ -257,12 +279,14 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
         #else:
         #    raw_input('reuse')
 
-        traj = openravepy.RaveCreateTrajectory(env, '')
+        with env:
+            traj = openravepy.RaveCreateTrajectory(env, '')
         try:
-            status = planner.PlanPath(traj)
+            with env:
+                status = planner.PlanPath(traj)
         except Exception as e:
             print e
-            import IPython; IPython.embed()
+            #import IPython; IPython.embed()
             raise
 
         print 2
@@ -281,13 +305,16 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
                 for i in xrange(0, len(trajSegments), 2):
                     trajs.append((int(trajSegments[i]), int(trajSegments[i+1])))
                     traj['has'] = True
+                    planner.GetUserData()['bail'] = True
         print 3
         if not traj['has']:
             checkTrajs()
         print 4
 
         utils.restoreEnv(env, robot, list(startEnvs)[0])
-        startToTree.putTree(start, planner, robot, activeDOFs)
+        with env:
+            if startToTree != None:
+                startToTree.putTree(start, planner, robot, activeDOFs)
 
         if not traj['has']:
             raise Exception('planning failed')
@@ -296,11 +323,14 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
     startGoalPairs = set()
     #goals = set()
     for (startIdx, goalIdx) in trajs:
-        arm.SetDOFValues(configs[goalIdx])
+        with env:
+            arm.SetDOFValues(configs[goalIdx])
         goal = utils.saveEnv(env, robot)
-        traj = openravepy.RaveCreateTrajectory(env, '')
+        with env:
+            traj = openravepy.RaveCreateTrajectory(env, '')
         planner.PlanPath(traj)
-        planner.SendCommand('prm_getTrajectory ' + str(startIdx) + ' ' + str(goalIdx))
-        startGoalPairs.add((startEnvs[startIdx], goal, traj))
+        success = planner.SendCommand('prm_getTrajectory ' + str(startIdx) + ' ' + str(goalIdx))
+        if success == "success":
+            startGoalPairs.add((startEnvs[startIdx], goal, traj))
     print 'END'
     return startGoalPairs
