@@ -62,7 +62,7 @@ class MoveObjToBin:
         rotation, extraRotation, offset = getObjSpecificProps(self.objname)
         abovePose, aboveIk, tsr_chain_place, tsr_chain_constrain = placeAboveBin(self.env, self.robot, c, self.objname, rotation, offset, extraRotation)
         bin = self.env.GetKinBody('bin')
-        if self.objname.startswith('glass'):
+        if self.objname.startswith('glass') or self.objname.startswith('tag_glass'):
             abovePose[2,3] = bin.ComputeAABB().pos()[2] + .1;
         elif self.objname.startswith('bowl'):
             abovePose[2,3] = bin.ComputeAABB().pos()[2] + .2;
@@ -114,7 +114,7 @@ def getObjSpecificProps(objname):
         rotation = utils.zrot(math.pi*1/2) 
         extraRotation = None
         offset = [ .25, 0, 0 ]
-    elif objname.startswith('glass'):
+    elif objname.startswith('glass') or objname.startswith('tag_glass'):
         rotation = np.dot(utils.xrot(math.pi/2), utils.zrot(math.pi))
         extraRotation = None
         offset = [ 0, 0, -.25 ] 

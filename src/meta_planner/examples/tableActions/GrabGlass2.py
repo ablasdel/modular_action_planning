@@ -13,7 +13,7 @@ def GrabGlass(glassName, arm, **common):
     node = metaNodes.PrioritizedSeqNode([ 
         robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=.5, spread=0, handName=arm.hand.GetName(), **common),
         MoveToGlass(glassName, armName=armName, **common),
-        robotNodes.MoveHandToNode(f1=1.5, f2=1.5, f3=1.5, spread=0, handName=arm.hand.GetName(), disable=[glassName], **common),
+        robotNodes.MoveHandToNode(f1=1.8, f2=1.8, f3=1.8, spread=0, handName=arm.hand.GetName(), disable=[glassName], **common),
         robotNodes.GrabNode(objname=glassName, armName=armName, **common),
         #robotNodes.PlanArmToOffsetPoseNode(moveDir=[0,0,1], moveDist=.1, armName=armName, disable=[glassName], **common)
     ])

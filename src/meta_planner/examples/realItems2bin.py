@@ -11,6 +11,11 @@ from utils import tableManip
 import numpy
 import random
 
+import math
+
+import rospkg, roslib
+objects_path = rospkg.RosPack().get_path('ng_demo') + '/ordata/objects/'
+
 def init_env(env, robot):
 
     table = setupTableEnv.add_table(env, robot)
@@ -18,9 +23,28 @@ def init_env(env, robot):
     setupTableEnv.set_robot_pose(env, robot, table)
     bin = setupTableEnv.add_bin(env)
     #tableManip.reset_env(env, robot, N=2, includePlate=False, includeBowls=False)
-    setupTableEnv.place_bowl_on_table(env, table, .7, .8)
-    setupTableEnv.place_glass_on_table(env, table, .6, .7)
-    #import IPython; IPython.embed()
+    #setupTableEnv.place_bowl_on_table(env, table, .7, .8)
+    #setupTableEnv.place_glass_on_table(env, table, .6, .7)
+
+    robot.head.MoveTo([math.pi/16, -math.pi/16])
+
+    import percy.kinbody as kb
+    detector = kb.KinBodyDetector(env, '', 'object_poses_array', objects_path, '/herb_base', '/kinect2_rgb')
+    detector.update()
+
+    snap_to_table(env, table, [ obj for obj in env.GetBodies() if obj.GetName().startswith('tag_glass') ])
+
+
+def snap_to_table(env, table, objects):
+    with env:
+        table_aabb = table.ComputeAABB()
+        table_height = table_aabb.pos()[2] + table_aabb.extents()[2]
+
+        for obj in objects:
+            T = obj.GetTransform()
+            T[0:3,0:3] = numpy.eye(3)
+            T[2,3] = table_height + .01
+            obj.SetTransform(T)
 
 def reset_env(env, robot):
     pass
@@ -38,8 +62,10 @@ def get_plan(common):
     numToMove = 0
     env = common['env']
     numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('glass')])
+    numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('tag_glass')])
     numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('bowl')])
     numToMove += sum([1 for b in env.GetBodies() if b.GetName().startswith('plate')])
+    
 
     #common['planType'] = 'RRTConnect'
     common['numStarts'] = common['args'].numStarts

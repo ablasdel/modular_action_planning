@@ -11,7 +11,7 @@ objects_path = rospkg.RosPack().get_path('ng_demo') + '/ordata/objects/'
 def setup_env(isReal, attach_viewer=True):
     env, robot = herbpy.initialize(sim=not isReal, attach_viewer=attach_viewer)
     if isReal:
-        robot.left_arm.SetVelocityLimits(np.ones(7)*.8, .8)
+        robot.left_arm.SetVelocityLimits(np.ones(7)*1.2, 1.2)
 
     table = add_table(env, robot)
 

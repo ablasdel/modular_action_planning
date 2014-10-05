@@ -11,6 +11,8 @@
 
   <depend package="symbolic_planning" />
   <depend package="or_ompl" />
+  <depend package="percy" />
+  <depend package="tf" />
 
 </package>
 

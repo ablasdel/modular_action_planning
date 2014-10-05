@@ -32,7 +32,7 @@ class DynamicToBin:
         utils.restoreEnv(self.env, self.robot, start)
         home_config = numpy.copy(self.robot.configurations.get_configuration('home')[1][0:7])
 
-        objnames = [ b.GetName() for b in self.env.GetBodies() if (b.GetName().startswith('glass') or b.GetName().startswith('bowl') or b.GetName().startswith('plate')) and b.IsEnabled() ]
+        objnames = [ b.GetName() for b in self.env.GetBodies() if (b.GetName().startswith('glass') or b.GetName().startswith('tag_glass') or b.GetName().startswith('bowl') or b.GetName().startswith('plate')) and b.IsEnabled() ]
 
         objScores = {}
         for objname in objnames:
@@ -73,7 +73,7 @@ class DynamicToBin:
         for objname, score in objScores.items():
             scoreSelection -= score
             if scoreSelection < 0:
-                if objname.startswith('glass'):
+                if objname.startswith('glass') or objname.startswith('tag_glass'):
                     return metaNodes.PrioritizedSeqNode([
                         GrabGlass(objname, self.arm, **self.common),
                         PlaceObjInBin(objname, self.arm, **self.common),
