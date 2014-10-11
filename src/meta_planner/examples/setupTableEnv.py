@@ -22,10 +22,14 @@ def setup_env(isReal, attach_viewer=True):
 def set_robot_pose(env, robot, table):
 
     if robot.left_arm.simulated:
-        robot.right_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][7:14])
-        robot.left_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][0:7])
+        if robot.GetName() == 'TIM':
+            robot.right_arm.SetDOFValues(robot.configurations.get_configuration('home')[1][6:13])
+            robot.left_arm.SetDOFValues(robot.configurations.get_configuration('home')[1][0:6])
+        else:
+            robot.right_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][7:14])
+            robot.left_arm.SetDOFValues(robot.configurations.get_configuration('relaxed_home')[1][0:7])
     
-    if robot.segway_sim:
+    if (robot.GetName() == 'TIM' and robot.base_sim) or robot.segway_sim:
         robot_in_table = np.array([[0., 1., 0.,  0.], 
                                       [0., 0., 1.,  0.],
                                       [1., 0., 0., -1.025],

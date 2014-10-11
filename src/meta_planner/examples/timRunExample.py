@@ -1,6 +1,7 @@
 import roslib; package_name='meta_planner'; roslib.load_manifest(package_name)
 import argparse
 import herbpy
+import timpy
 import importlib
 from components import coreNodeComponents as components
 import components.metaNodeComponents as metaComponents
@@ -35,8 +36,8 @@ def test():
         random.seed(args.seed)
 
     isReal = args.real
-    env, robot = herbpy.initialize(sim=True, attach_viewer=args.viewSim)
-    execEnv, execRobot = herbpy.initialize(sim=not isReal, attach_viewer=args.viewExec, segway_sim=True)
+    env, robot = timpy.initialize(sim=True, attach_viewer=args.viewSim)
+    execEnv, execRobot = timpy.initialize(sim=not isReal, attach_viewer=args.viewExec, base_sim=True)
     if isReal:
         execRobot.left_arm.SetVelocityLimits(np.ones(7)*.5, .5)
         execRobot.right_arm.SetVelocityLimits(np.ones(7)*.5, .5)

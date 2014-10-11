@@ -30,7 +30,10 @@ class DynamicToBin:
         self.arm = arm
     def startToSubnode(self, start):
         utils.restoreEnv(self.env, self.robot, start)
-        home_config = numpy.copy(self.robot.configurations.get_configuration('home')[1][0:7])
+        if self.robot.GetName() == 'TIM':
+            home_config = numpy.copy(self.robot.configurations.get_configuration('home')[1][0:6])
+        else:
+            home_config = numpy.copy(self.robot.configurations.get_configuration('home')[1][0:7])
 
         objnames = [ b.GetName() for b in self.env.GetBodies() if (b.GetName().startswith('glass') or b.GetName().startswith('tag_glass') or b.GetName().startswith('bowl') or b.GetName().startswith('plate')) and b.IsEnabled() ]
 

@@ -11,9 +11,9 @@ import numpy as np
 def GrabBowl(bowlName, arm, **common):
     armName = arm.GetName()
     node = metaNodes.PrioritizedSeqNode([ 
-        robotNodes.MoveHandToNode(f1=.5, f2=.5, f3=.5, spread=0, handName=arm.hand.GetName(), **common),
+        robotNodes.MoveHandToNode(f1=.75, f2=.75, f3=.75, spread=0, handName=arm.hand.GetName(), **common),
         MoveToBowl(bowlName, armName=armName, **common),
-        robotNodes.MoveHandToNode(f1=2, f2=2, f3=2, spread=0, handName=arm.hand.GetName(), disable=[bowlName], **common),
+        robotNodes.MoveHandToNode(f1=2.5, f2=2.5, f3=2.5, spread=0, handName=arm.hand.GetName(), disable=[bowlName], **common),
         robotNodes.GrabNode(objname=bowlName, armName=armName, **common),
     ])
     return node

@@ -7,6 +7,10 @@ import traceback
 from utils import choice
 import networkx as nx
 
+import time
+
+nodeSequence = []
+
 class Subnode:
     def __init__(self):
         components.extend(self, [
@@ -32,6 +36,7 @@ class Subnode:
                     traceback.print_exception(*sys.exc_info())
                     onDone()
                     return
+            nodeSequence.append((node, time.time()))
             node.runOnce()
             if hasattr(self, 'onDone'):
                 try:

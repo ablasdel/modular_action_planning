@@ -51,12 +51,12 @@ class MoveObjToBin:
         self.armName = kwargs['armName']
     def getStartGoalGenChoice(self, start):
         return choice.Choices({
-            "x": choice.Uniform(-.25, .25),
-            "y": choice.Uniform(-.5, .5),
-            "z": choice.Uniform(-.2, .2),
-            #"x": choice.Uniform(.1782, .1982),
-            #"y": choice.Uniform(.216, .236),
-            #"z": choice.Uniform(.089, .109),
+            #"x": choice.Uniform(-.25, .25),
+            #"y": choice.Uniform(-.5, .5),
+            #"z": choice.Uniform(-.2, .2),
+            "x": choice.Uniform(-.5, .5),
+            "y": choice.Uniform(-1, 1),
+            "z": choice.Uniform(-.5, .5),
         })
     def startGoalGenChoiceToPose(self, start, c):
         rotation, extraRotation, offset = getObjSpecificProps(self.objname)
@@ -70,9 +70,16 @@ class MoveObjToBin:
             abovePose[2,3] = bin.ComputeAABB().pos()[2] + .05;
         else:
             raise Exception('unsupported objtype: ' + str(self.objname))
+
         #arm = self.robot.GetManipulator(self.armName)
         #aboveIK = arm.FindIKSolution(abovePose, openravepy.IkFilterOptions.CheckEnvCollisions)
         #origIK = arm.GetDOFValues()
+
+        #A = openravepy.misc.DrawAxes(self.env, abovePose)
+        #A.SetShow(True)
+        #raw_input('%')
+        #A.SetShow(False)
+
         #if aboveIK != None:
         #    arm.SetDOFValues(aboveIK)
         #    raw_input('3')

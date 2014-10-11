@@ -325,10 +325,10 @@ class PlanArmToConfigsNode:
         #setupWrappedRobotNode(self, kwargs)
         components.extend(self, [
             ('choice', metaNodes.prioritizedComponents.PrioritizedMultiStarts(**kwargs), [ self.runWithStarts ]),
-            #('execTraj', robotComponents.ExecChompdTrajNode(
-            #                robotComponents.ExecSmoothedTrajNode(
-            #                    robotComponents.ExecTrajNode(), **kwargs), **kwargs), []),
-            ('execTraj', robotComponents.ExecSmoothedTrajNode(robotComponents.ExecTrajNode(), **kwargs), []),
+            ('execTraj', robotComponents.ExecChompdTrajNode(
+                            robotComponents.ExecSmoothedTrajNode(
+                                robotComponents.ExecTrajNode(), **kwargs), **kwargs), []),
+            #('execTraj', robotComponents.ExecSmoothedTrajNode(robotComponents.ExecTrajNode(), **kwargs), []),
             ('traj', robotComponents.TrajNode(), [])
         ])
         self.components.execTraj.setTrajNode(self.components.traj)
@@ -371,7 +371,11 @@ class PlanArmToConfigsNode:
             self.setTraj(start, goal, traj)
             #self.startGoalToTraj[(start, goal)] = traj
             self.addConnectedStartGoalPair((start, goal, None))
-    def execTraj(self, traj):
+    def execTraj(self, sim_traj):
+        traj = openravepy.RaveCreateTrajectory(self.execEnv, '')
+        traj.deserialize(sim_traj.serialize())
+        #TODO file bug for needing to Retime
+        openravepy.planningutils.RetimeTrajectory(traj)
         with utils.DisableWrapper(self.execEnv, self.disable, self.disablePadding):
             #import IPython; IPython.embed()
             self.execRobot.ExecuteTrajectory(traj)
@@ -439,6 +443,10 @@ def getHand(robot, handName):
     if handName == '/left/wam7':
         return robot.left_hand
     elif handName == '/right/wam7':
+        return robot.right_hand
+    if handName == 'TEMASim/ARM_l/wam7':
+        return robot.left_hand
+    if handName == 'TEMASim/ARM_r/wam7':
         return robot.right_hand
     else:
         raise Exception('unknown hand name: ' + str(handName))

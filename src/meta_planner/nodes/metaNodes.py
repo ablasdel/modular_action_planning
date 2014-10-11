@@ -99,7 +99,9 @@ class PrioritizedFSMNode:
 
 #============================================================================================================
 
+import threading
 class ExecNode:
+    ExecLock = threading.Event()
     def __init__(self, subnode):
         self.subnode = subnode
         components.extend(self, [
@@ -113,7 +115,11 @@ class ExecNode:
         if len(node.getConnectedStartGoalPairs()) > 0:
             pair = list(node.getConnectedStartGoalPairs())[0]
             self.disableNode()
+            #onDone()
+            #ExecNode.ExecLock.set()
+            #TODO GIL makes this not parallel...
             node.execute(pair)
+            #ExecNode.ExecLock.clear()
             onDone()
         elif self.isPaused() or self.isRunOnce():
             onDone()

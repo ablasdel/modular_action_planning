@@ -181,11 +181,21 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
 
     with env:
         activeDOFs = arm.GetArmIndices()
-        starts = []
-        for start in startEnvs:
+    starts = []
+    for start in startEnvs:
+        with env:
             utils.restoreEnv(env, robot, start)
             robot.SetActiveDOFs(activeDOFs)
             starts.append(robot.GetDOFValues()[robot.GetActiveDOFIndices()])
+        import time
+        time.sleep(.1)
+    for config in configs:
+        import time
+        with env:
+            arm.SetDOFValues(config)
+        time.sleep(.1)
+    with env:
+        utils.restoreEnv(env, robot, startEnvs[0])
     goals = configs
     #if len(list(startEnvs)[0]['grabbed']) > 0:
     #    t = list(startEnvs)[0]['bodies']['glass_3']['transform']
@@ -217,11 +227,15 @@ def planArmReuseMultiPRM(env, robot, armName, startEnvs, configs, startToTree, d
                 env.SetUserData(user_data)
             USERDATA_DESTRUCTOR = '__destructor__'
 
+            MAX_TIMES = 3
+            if robot.GetName() == 'TIM':
+                MAX_TIMES = 8
+
             times = { 'n': 0, 'bail': False }
             def planCB(_):
                 times['n'] += 1
                 print 'times', times['n'], times['bail']
-                if times['n'] < 4 and not times['bail']:
+                if times['n'] < MAX_TIMES and not times['bail']:
                     return openravepy.PlannerAction.ReturnWithAnySolution
                 else:
                     return openravepy.PlannerAction.Interrupt
