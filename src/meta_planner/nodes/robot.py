@@ -349,12 +349,16 @@ class PlanArmToConfigs:
             arm = self.robot.GetManipulator(self.armName)
         planType = self.kwargs.get('planType', 'ReuseMultiPRM')
         if planType == 'ReuseMultiPRM':
-            startGoalPairs = planArmNodeHelper.planArmReuseMultiPRM(
-                                                    self.env, self.robot, self.armName, 
-                                                    starts, self.configs, 
-                                                    self.startToTree, 
-                                                    self.disable, self.disablePadding)
-        elif planType == 'RRTConnect':
+            try:
+                startGoalPairs = planArmNodeHelper.planArmReuseMultiPRM(
+                                                        self.env, self.robot, self.armName, 
+                                                        starts, self.configs, 
+                                                        self.startToTree, 
+                                                        self.disable, self.disablePadding)
+            except:
+                print 'unable to use multi start/goal PRM, falling back to RRTConnect...'
+                planType = 'RRTConnect'
+        if planType == 'RRTConnect':
             if len(starts) > 1 or len(self.configs) > 1:
                 print('warning, only planning with one start and one goal')
             startGoalPairs = planArmNodeHelper.planArmRRTConnect(
