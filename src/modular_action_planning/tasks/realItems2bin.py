@@ -14,7 +14,7 @@ import random
 import math
 
 import rospkg, roslib
-objects_path = rospkg.RosPack().get_path('meta_planner') + '/ordata/objects/'
+objects_path = rospkg.RosPack().get_path('modular_action_planning') + '/ordata/objects/'
 
 def add_arguments(parser):
     pass
