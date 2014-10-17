@@ -1,4 +1,6 @@
-import roslib; package_name='meta_planner'; roslib.load_manifest(package_name)
+#!/usr/bin/env python
+package_name='modular_action_planning'
+import roslib; roslib.load_manifest(package_name)
 import argparse
 import herbpy
 import timpy

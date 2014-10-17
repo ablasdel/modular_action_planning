@@ -6,7 +6,7 @@ import herbpy
 from utils import utils
 import math
 
-objects_path = rospkg.RosPack().get_path('meta_planner') + '/ordata/objects/'
+objects_path = rospkg.RosPack().get_path('modular_action_planning') + '/ordata/objects/'
 
 def setup_env(isReal, attach_viewer=True):
     env, robot = herbpy.initialize(sim=not isReal, attach_viewer=attach_viewer)
